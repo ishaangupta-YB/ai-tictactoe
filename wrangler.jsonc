@@ -18,21 +18,19 @@
 		"directory": "public"
 	},
 	"durable_objects": {
-		"bindings": [
-			{
-				"name": "Chat",
-				"class_name": "Chat"
-			}
-		]
-	},
+    "bindings": [
+      {
+        "class_name": "TicTacToe",
+        "name": "TicTacToe"
+      }
+    ]
+  },
 	"migrations": [
-		{
-			"tag": "v1",
-			"new_sqlite_classes": [
-				"Chat"
-			]
-		}
-	],
+    {
+      "new_sqlite_classes": ["TicTacToe"],
+      "tag": "v1"
+    }
+  ],
 	"observability": {
 		"enabled": true
 	}
