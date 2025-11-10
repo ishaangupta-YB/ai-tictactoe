@@ -147,10 +147,50 @@ Builds with Vite and deploys to Cloudflare Workers
 - `useAgent()` automatically establishes WebSocket connection on mount
 - `onStateUpdate` callback receives full state object on every `setState()` call from Agent
 - Local React state mirrors Agent state for immediate UI updates
+- **Menu System**: Landing page with mode selection buttons (Player vs AI / AI vs AI)
+- **Game Statistics**: Real-time tracking of X wins, O wins, and draws with visual stat cards
+- **Games Counter**: Persistent counter showing total games played in current session
+- **AI Thinking Indicator**: Shows "AI is thinking..." status with psychology icon during AI moves
+- **Automatic Game Restart**: 3-second delay after game completion before auto-reset
+- **Cell Interaction**:
+  - Disabled in AI vs AI mode (watch-only)
+  - Disabled when AI is thinking (prevents race conditions)
+  - Disabled on filled cells or when game is over
+- **AI vs AI Auto-start**: Random first move triggered automatically after 500ms delay
+- **Material Icons**: Uses Material Icons Round for all UI elements (close for X, circle for O)
+
+## Game Flow & Lifecycle
+
+**Player vs AI Mode:**
+1. User selects "Play vs AI" from menu → navigates to `/player`
+2. Frontend calls `setMode("player-vs-ai")` and `clearBoard()`
+3. User (X) clicks cell → `makeMove([row, col], "X")` called
+4. Agent validates, updates state, checks winner, switches to O
+5. Agent detects O's turn in player-vs-ai mode → sets `isAiThinking: true`
+6. AI generates move via GPT-4o → recursively calls `makeMove([row, col], "O")`
+7. Agent updates state with AI's move, sets `isAiThinking: false`
+8. Frontend receives state update → UI reflects new board state
+9. Repeat steps 3-8 until winner or draw
+10. Game auto-restarts after 3 seconds, stats updated
+
+**AI vs AI Mode:**
+1. User selects "AI vs AI" from menu → navigates to `/ai`
+2. Frontend calls `setMode("ai-vs-ai")` and `clearBoard()`
+3. Frontend triggers random first move after 500ms
+4. Each AI move triggers next AI move automatically (both X and O)
+5. Game plays autonomously until completion
+6. Auto-restart continues indefinitely, building statistics
+
+**Critical Implementation Patterns:**
+- **Recursive AI Moves**: AI calls `this.makeMove()` on itself, maintaining turn-based flow
+- **Conditional AI Triggering**: Logic checks both mode and currentPlayer to determine if AI should play
+- **State Preservation**: `clearBoard()` preserves mode, ensuring game type persists across resets
+- **Race Condition Prevention**: `isAiThinking` flag prevents user clicks during AI computation
+- **Initialization Sequence**: Mode set before board clear to ensure proper initial state
 
 ## Environment Configuration
 
-The project follows Cloudflare's current best practices per `.cursor/rules/cloudflare.mdc`:
+The project follows Cloudflare Workers best practices for modern applications:
 
 **Required Environment Variables:**
 
@@ -168,7 +208,64 @@ The project follows Cloudflare's current best practices per `.cursor/rules/cloud
 ## File Structure
 
 - `src/server.ts`: Agent class definition and Worker entrypoint
+  - `TicTacToe` class with `@callable()` methods
+  - `checkWinner()` helper for win condition detection
+  - AI move generation logic with OpenAI integration
+  - Request routing via `routeAgentRequest()`
 - `src/client.tsx`: React application with `useAgent()` integration
-- `src/styles.css`: Game styling
-- `wrangler.jsonc`: Cloudflare Workers configuration with Durable Object bindings
+  - `Menu` component for game mode selection
+  - `Game` component with React Router integration
+  - State synchronization and statistics tracking
+  - Material Icons integration for UI elements
+- `src/styles.css`: Game styling with modern CSS
+  - Grid-based board layout
+  - Player color schemes (X and O)
+  - AI thinking animations
+  - Responsive stat cards and controls
+- `wrangler.jsonc`: Cloudflare Workers configuration
+  - Durable Object bindings for `TicTacToe`
+  - SQLite migrations configuration
+  - AI binding with remote enabled
+  - Assets directory configuration
 - `vite.config.ts`: Build configuration with Cloudflare, React, and Tailwind plugins
+- `package.json`: Dependencies and scripts
+  - `agents` package (v0.2.21) for Agent SDK
+  - `@ai-sdk/openai` for AI integration
+  - `react-router-dom` for navigation
+  - Development tools: Vitest, Prettier, Biome, TypeScript
+
+## Common Development Tasks
+
+**Adding New Callable Methods:**
+1. Define method in `TicTacToe` class with `@callable()` decorator
+2. Update `TicTacToeState` type if new state fields needed
+3. Call method from frontend via `agent.call("methodName", [args])`
+4. State changes automatically sync to all connected clients
+
+**Modifying AI Behavior:**
+- Edit prompt in `makeMove()` method (lines 96-117 in src/server.ts)
+- Adjust strategic priorities or add new rules
+- Change model by updating `openai("gpt-4o")` parameter
+- Test with AI vs AI mode for rapid iteration
+
+**Adding New Game Modes:**
+1. Update `GameMode` type in src/server.ts
+2. Add mode to `TicTacToeState` initial state
+3. Update conditional logic in `makeMove()` AI triggering (lines 77-79)
+4. Add new route and menu button in src/client.tsx
+5. Handle mode initialization in `useEffect` (lines 92-114)
+
+**Debugging Tips:**
+- Check browser console for AI move logs: "🤖 AI is thinking...", "✅ AI chose move:"
+- Use `npm run check` to catch type errors before deployment
+- Monitor Cloudflare Workers logs via dashboard for production issues
+- Test both game modes thoroughly after changes to move validation logic
+- Verify WebSocket connection in browser DevTools Network tab
+
+**Testing Workflow:**
+1. Run `npm start` for local development with hot reload
+2. Test Player vs AI mode for user interaction flows
+3. Test AI vs AI mode for autonomous operation and edge cases
+4. Run `npm run check` for linting and type checking
+5. Run `npm test` for Vitest suite execution
+6. Deploy with `npm run deploy` after verification
